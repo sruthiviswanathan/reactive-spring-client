@@ -1,6 +1,8 @@
 package com.reactivespring.controller;
 
 import com.reactivespring.domain.Item;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.reactive.function.client.WebClient;
@@ -9,6 +11,7 @@ import reactor.core.publisher.Mono;
 
 // this controller behaves as client
 @RestController
+@Slf4j
 public class ItemClientController {
 
     WebClient webClient = WebClient.create("http://localhost:8080");
@@ -54,6 +57,19 @@ public class ItemClientController {
                 .retrieve()
                 .bodyToMono(Item.class)
                 .log("Created new Item in client project");
+    }
+
+    @GetMapping("/client/error")
+    public Flux<Item> error() {
+        return webClient.get().uri("/items/runtimeException")
+                .retrieve()
+                .onStatus(HttpStatus::is5xxServerError, clientResponse -> {
+                    Mono<String> errorMono = clientResponse.bodyToMono(String.class);
+                    return errorMono.flatMap((error) -> {
+                        log.error("error message: " + error);
+                        throw new RuntimeException(error);
+                    });
+                }).bodyToFlux(Item.class);
     }
 
 }
